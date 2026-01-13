@@ -16,6 +16,9 @@ var config = new ConfigurationBuilder()
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("Default"), name: "timescale");
+
 // Add services to the container.
 builder.Services.AddControllers();
 
@@ -31,18 +34,18 @@ builder.Services.AddControllers()
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-//builder.Services.AddSwaggerGen();
-builder.Services.AddSwaggerGen(c =>
+
+builder.Services.AddSwaggerGen(options =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
+
+    options.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "LibraryService API",
         Version = "v1"
     });
 
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
@@ -52,7 +55,7 @@ builder.Services.AddSwaggerGen(c =>
         Description = "Vnesi JWT token v obliki: Bearer {tvoj_token}"
     });
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
@@ -66,9 +69,10 @@ builder.Services.AddSwaggerGen(c =>
             new string[] {}
         }
     });
+
     var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
 
-    c.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
+    options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFilename));
 });
 
 builder.Services.AddSingleton(config);
@@ -102,6 +106,8 @@ builder.Services.AddHttpClient("BookService", client =>
 
 var app = builder.Build();
 
+app.MapHealthChecks("/health"); 
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -109,10 +115,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-//app.Urls.Add("http://+:8080");
-
 //app.UseHttpsRedirection();
-//app.UseAuthorization();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

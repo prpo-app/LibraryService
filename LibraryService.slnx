@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="LibraryService.test/LibraryService.test.csproj" Id="87e19117-d4fb-4463-b983-0eeb41206a01" />
   <Project Path="LibraryService/LibraryService.csproj" />
 </Solution>

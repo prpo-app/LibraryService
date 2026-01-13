@@ -38,8 +38,10 @@ namespace LibraryService.Controllers
         /// <response code="400">Invalid parameters.</response>
         /// <response code="401">User is not authenticated.</response>
         /// <response code="403">Access denied.</response>
+        /// <response code="404">Book not found.</response>
+        /// <response code="503">BookService unavailable.</response>
         [HttpGet]
-        public IActionResult GetLibrary(
+        public async Task<IActionResult> GetLibrary(
             [FromQuery] int offset = 0,
             [FromQuery] int limit = 5,
             [FromQuery] BookStatus? status = null)
@@ -65,18 +67,46 @@ namespace LibraryService.Controllers
                     _ => null
                 };
 
-                if (statusString == null)
+                if (statusString == null) 
                     return BadRequest("Invalid book status.");
 
                 query = query.Where(b => b.Status == statusString);
             }
-                var books = query
-                    .OrderBy(b => b.Book_id)
-                    .Skip(offset)
-                    .Take(limit)
-                    .ToList();
+            
+            var books = query
+                .OrderBy(b => b.Book_id)
+                .Skip(offset)
+                .Take(limit)
+                .ToList();
 
-            return Ok(books);
+            var client = _httpClientFactory.CreateClient("BookService");
+
+            var result = new List<LibraryBook>();
+
+            foreach (var entry in books) 
+            {
+                var response = await client.GetAsync($"/book/{entry.Book_id}");
+
+                if (!response.IsSuccessStatusCode)
+                    return StatusCode(503, "BookService unavailable.");
+
+                var book = await response.Content
+                    .ReadFromJsonAsync<BookDto>();
+
+                if (book == null)
+                    return NotFound("Book not found.");
+
+                result.Add(new LibraryBook
+                {
+                    BookId = book.Id,
+                    Title = book.Title,
+                    Author = book.Author,
+                    Genre = book.Genre,
+                    Status = entry.Status,
+                });
+            }
+
+            return Ok(result);
         }
 
 
@@ -91,7 +121,7 @@ namespace LibraryService.Controllers
         /// <response code="401">User is not authenticated.</response>
         /// <response code="403">Access denied.</response>
         /// <response code="404">Book doesn't exist.</response>
-        /// <response code="503">BookService is unavailable.</response>
+        /// <response code="503">BookService unavailable.</response>
         [HttpPost]
         public async Task<IActionResult> AddBook(int bookId, BookStatus status)
         {
